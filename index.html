@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小五數學科 - 體積的量度 (學生版 穩定性修正)</title>
+    <title>體積的量度 (iPad 穩定修正版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -12,16 +12,14 @@
         
         #ui { 
             position: absolute; top: 20px; left: 20px; 
-            background: rgba(255, 255, 255, 0.8); 
+            background: rgba(255, 255, 255, 0.85); 
             padding: 15px; border-radius: 12px; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
             width: 250px; z-index: 100; 
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            pointer-events: auto; /* 確保UI能接收事件 */
         }
 
         #ui.collapsed { transform: translateX(-240px); background: rgba(255, 255, 255, 0.4); }
-        #ui:active, #ui:hover { background: rgba(255, 255, 255, 0.98); }
 
         #toggleBtn {
             position: absolute; right: 10px; top: 10px;
@@ -32,14 +30,14 @@
         #ui.collapsed #toggleBtn { right: -45px; border-radius: 0 6px 6px 0; }
 
         .header { margin-bottom: 12px; border-bottom: 2px solid #28a745; padding-bottom: 8px; padding-right: 35px; }
-        .subject-tag { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
         .volume-box { background: #e8f5e9; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #28a745; }
         #count { font-size: 24px; font-weight: bold; color: #2e7d32; }
 
         .btn { width: 100%; padding: 12px; margin: 5px 0; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; }
         .btn-add { background: #28a745; color: white; }
         .btn-del { background: #dc3545; color: white; }
-        .active { outline: 4px solid #000; }
+        /* 激活狀態的按鈕樣式 */
+        .active { box-shadow: inset 0 0 0 4px #000; }
         
         .control-group { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
         label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; }
@@ -53,15 +51,14 @@
 <div id="ui">
     <button id="toggleBtn" onclick="toggleUI()">◀</button>
     <div class="header">
-        <span class="subject-tag">小五數學科</span>
-        <span class="topic-title" style="display:block; font-weight:bold; margin-top:5px;">體積的量度 (學生版)</span>
+        <b style="display:block; font-size:16px;">體積的量度 (學生版)</b>
         <span style="font-size:11px; color:#666;">設計者：黃潔芳老師</span>
     </div>
 
     <div class="volume-box">總體積：<span id="count">0</span> cm³</div>
 
-    <button id="addBtn" class="btn btn-add active">模式：增加積木</button>
-    <button id="delBtn" class="btn btn-del">模式：刪除積木</button>
+    <button id="addBtn" class="btn btn-add active" onclick="setMode('add')">模式：增加積木</button>
+    <button id="delBtn" class="btn btn-del" onclick="setMode('del')">模式：刪除積木</button>
     
     <div class="control-group">
         <label>↕ 上下拆解：</label>
@@ -81,11 +78,9 @@
     }
 
     let mode = 'add';
-    
-    // --- 穩定性優化：新增座標紀錄變數 ---
     let touchStartX = 0;
     let touchStartY = 0;
-    const clickDistanceThreshold = 10; // 允許的微小手指位移範圍(像素)
+    const clickDistanceThreshold = 15; // 稍微放寬容錯值，讓 iPad 更容易點擊
 
     const cubes = [];
     const layerColors = [0x448aff, 0xffeb3b, 0xff5722, 0xe91e63, 0x00bcd4, 0x4caf50];
@@ -101,60 +96,47 @@
     document.body.appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    // 移除舊的 controls 'change' 監聽，改用物理距離判斷
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const light = new THREE.DirectionalLight(0xffffff, 0.5);
     light.position.set(10, 20, 10);
     scene.add(light);
 
+    // 網格輔助
     scene.add(new THREE.GridHelper(10, 10, 0x444444, 0xcccccc));
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshLambertMaterial({ visible: false }));
     plane.rotation.x = -Math.PI / 2;
     scene.add(plane);
 
+    // 影子預覽
     const ghost = new THREE.Mesh(
-        new THREE.BoxGeometry(1.01, 1.01, 1.01), 
-        new THREE.MeshBasicMaterial({ color: 0x28a745, transparent: true, opacity: 0.4 })
+        new THREE.BoxGeometry(1.02, 1.02, 1.02), 
+        new THREE.MeshBasicMaterial({ color: 0x28a745, transparent: true, opacity: 0.5 })
     );
     scene.add(ghost);
 
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
-    // 精準對位函數
     function updateMouse(e) {
         const rect = renderer.domElement.getBoundingClientRect();
-        let clientX, clientY;
-        
-        // 處理觸控與滑鼠事件的坐標獲取
-        if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-        
-        mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-        return { clientX, clientY }; // 回傳物理坐標用於計算距離
+        const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+        mouse.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
+        return { cx: t.clientX, cy: t.clientY };
     }
 
-    // 處理滑動預覽 (保持敏感)
     function onPointerMove(event) {
         if (event.target.closest('#ui')) { ghost.visible = false; return; }
         updateMouse(event);
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects([...cubes, plane]);
+        
         if (intersects.length > 0) {
             const intersect = intersects[0];
             if (mode === 'add') {
                 const normal = intersect.face ? intersect.face.normal.clone() : new THREE.Vector3(0,1,0);
-                const pos = new THREE.Vector3().copy(intersect.point).add(normal.multiplyScalar(0.5));
+                const pos = new THREE.Vector3().copy(intersect.point).add(normal.multiplyScalar(0.1));
                 ghost.position.set(Math.floor(pos.x)+0.5, Math.floor(pos.y)+0.5, Math.floor(pos.z)+0.5);
                 ghost.visible = true;
                 ghost.material.color.setHex(0x28a745);
@@ -162,43 +144,39 @@
                 ghost.position.copy(intersect.object.position);
                 ghost.visible = true;
                 ghost.material.color.setHex(0xff0000);
-            }
+            } else { ghost.visible = false; }
         } else { ghost.visible = false; }
     }
 
-    // 當手指按下：紀錄起點物理坐標
     function onPointerDown(event) {
         if (event.target.closest('#ui')) return;
-        const coords = updateMouse(event);
-        touchStartX = coords.clientX;
-        touchStartY = coords.clientY;
+        const c = updateMouse(event);
+        touchStartX = c.cx;
+        touchStartY = c.cy;
     }
 
-    // 當手指放開：計算位移距離，決定是否放置積木
     function onPointerUp(event) {
         if (event.target.closest('#ui')) return;
-        const coords = updateMouse(event);
-        
-        // 計算物理距離差 (Pythagorean theorem)
-        const dx = coords.clientX - touchStartX;
-        const dy = coords.clientY - touchStartY;
-        const distance = Math.sqrt(dx*dx + dy*dy);
+        const c = updateMouse(event);
+        const dist = Math.sqrt(Math.pow(c.cx - touchStartX, 2) + Math.pow(c.cy - touchStartY, 2));
 
-        // --- 核心優化判斷 ---
-        // 如果放開時手指位移超過閾值，認定是在旋轉視角，不執行開砌動作
-        if (distance > clickDistanceThreshold) return;
+        // 如果手指滑動距離太大，判定為旋轉視角，不執行動作
+        if (dist > clickDistanceThreshold) return;
 
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects([...cubes, plane]);
+        
         if (intersects.length > 0) {
             const intersect = intersects[0];
             if (mode === 'add') {
                 const normal = intersect.face ? intersect.face.normal.clone() : new THREE.Vector3(0,1,0);
-                const pos = new THREE.Vector3().copy(intersect.point).add(normal.multiplyScalar(0.5));
+                const pos = new THREE.Vector3().copy(intersect.point).add(normal.multiplyScalar(0.1));
                 addCube(Math.floor(pos.x)+0.5, Math.floor(pos.y)+0.5, Math.floor(pos.z)+0.5);
             } else if (mode === 'del' && intersect.object !== plane) {
+                // 執行刪除
                 scene.remove(intersect.object);
-                cubes.splice(cubes.indexOf(intersect.object), 1);
+                const index = cubes.indexOf(intersect.object);
+                if (index > -1) cubes.splice(index, 1);
                 updateCount();
             }
         }
@@ -206,7 +184,6 @@
 
     function addCube(x, y, z) {
         if (y < 0 || Math.abs(x) > 5 || Math.abs(z) > 5) return;
-        // 防止重疊放置
         if (cubes.some(c => Math.abs(c.userData.ox - x) < 0.1 && Math.abs(c.userData.oy - y) < 0.1 && Math.abs(c.userData.oz - z) < 0.1)) return;
         
         const mat = new THREE.MeshLambertMaterial({ color: layerColors[Math.floor(y) % layerColors.length] });
@@ -215,8 +192,14 @@
         cube.userData = { ox: x, oy: y, oz: z };
         scene.add(cube);
         cubes.push(cube);
-        updatePositions(); // 確保新積木跟隨當前展開狀態
+        updatePositions();
         updateCount();
+    }
+
+    function setMode(newMode) {
+        mode = newMode;
+        document.getElementById('addBtn').className = 'btn btn-add' + (mode==='add'?' active':'');
+        document.getElementById('delBtn').className = 'btn btn-del' + (mode==='del'?' active':'');
     }
 
     function updatePositions() {
@@ -230,7 +213,6 @@
 
     function updateCount() { document.getElementById('count').innerText = cubes.length; }
 
-    // 事件監聽 (移除控制器的 change 監聽，完全由 touch 事件處理邏輯)
     window.addEventListener('touchstart', onPointerDown, {passive: false});
     window.addEventListener('touchmove', onPointerMove, {passive: false});
     window.addEventListener('touchend', onPointerUp, {passive: false});
