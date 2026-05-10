@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小五數學科 - 體積的量度 (學生版)</title>
+    <title>小五數學科 - 體積的量度 (學生版 穩定性修正)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        /* 防止 iPad 長按彈出選單 */
         * { -webkit-touch-callout: none; -webkit-user-select: none; }
         body { margin: 0; font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif; overflow: hidden; background: #f0f2f5; touch-action: none; }
         
-        /* 面板樣式：預設半透明 */
         #ui { 
             position: absolute; top: 20px; left: 20px; 
             background: rgba(255, 255, 255, 0.8); 
@@ -19,15 +17,12 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
             width: 250px; z-index: 100; 
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: auto; /* 確保UI能接收事件 */
         }
 
-        /* 面板收納狀態 */
         #ui.collapsed { transform: translateX(-240px); background: rgba(255, 255, 255, 0.4); }
-
-        /* 觸碰面板變回不透明 */
         #ui:active, #ui:hover { background: rgba(255, 255, 255, 0.98); }
 
-        /* 收納按鈕 */
         #toggleBtn {
             position: absolute; right: 10px; top: 10px;
             background: #007bff; color: white; border: none;
@@ -79,7 +74,6 @@
 </div>
 
 <script>
-    // 面板控制
     function toggleUI() {
         const ui = document.getElementById('ui');
         ui.classList.toggle('collapsed');
@@ -87,11 +81,15 @@
     }
 
     let mode = 'add';
-    let isMoving = false; 
+    
+    // --- 穩定性優化：新增座標紀錄變數 ---
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const clickDistanceThreshold = 10; // 允許的微小手指位移範圍(像素)
+
     const cubes = [];
     const layerColors = [0x448aff, 0xffeb3b, 0xff5722, 0xe91e63, 0x00bcd4, 0x4caf50];
 
-    // 初始化 3D 場景
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8f9fa);
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -99,24 +97,22 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio); // 解決高解析度螢幕偏移
+    renderer.setPixelRatio(window.devicePixelRatio); 
     document.body.appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.addEventListener('change', () => { isMoving = true; }); // 旋轉時標記，防止誤放積木
+    // 移除舊的 controls 'change' 監聽，改用物理距離判斷
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const light = new THREE.DirectionalLight(0xffffff, 0.5);
     light.position.set(10, 20, 10);
     scene.add(light);
 
-    // 網格與基準面
     scene.add(new THREE.GridHelper(10, 10, 0x444444, 0xcccccc));
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshLambertMaterial({ visible: false }));
     plane.rotation.x = -Math.PI / 2;
     scene.add(plane);
 
-    // 預覽方塊
     const ghost = new THREE.Mesh(
         new THREE.BoxGeometry(1.01, 1.01, 1.01), 
         new THREE.MeshBasicMaterial({ color: 0x28a745, transparent: true, opacity: 0.4 })
@@ -126,16 +122,29 @@
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
-    // --- 精準對位函數：核心修正處 ---
+    // 精準對位函數
     function updateMouse(e) {
         const rect = renderer.domElement.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        // 計算相對於畫布內部的百分比座標，消除所有偏移
+        let clientX, clientY;
+        
+        // 處理觸控與滑鼠事件的坐標獲取
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        
         mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        return { clientX, clientY }; // 回傳物理坐標用於計算距離
     }
 
+    // 處理滑動預覽 (保持敏感)
     function onPointerMove(event) {
         if (event.target.closest('#ui')) { ghost.visible = false; return; }
         updateMouse(event);
@@ -157,11 +166,28 @@
         } else { ghost.visible = false; }
     }
 
-    function onPointerDown(event) { isMoving = false; updateMouse(event); }
+    // 當手指按下：紀錄起點物理坐標
+    function onPointerDown(event) {
+        if (event.target.closest('#ui')) return;
+        const coords = updateMouse(event);
+        touchStartX = coords.clientX;
+        touchStartY = coords.clientY;
+    }
 
+    // 當手指放開：計算位移距離，決定是否放置積木
     function onPointerUp(event) {
-        if (isMoving || event.target.closest('#ui')) return;
-        updateMouse(event);
+        if (event.target.closest('#ui')) return;
+        const coords = updateMouse(event);
+        
+        // 計算物理距離差 (Pythagorean theorem)
+        const dx = coords.clientX - touchStartX;
+        const dy = coords.clientY - touchStartY;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+
+        // --- 核心優化判斷 ---
+        // 如果放開時手指位移超過閾值，認定是在旋轉視角，不執行開砌動作
+        if (distance > clickDistanceThreshold) return;
+
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects([...cubes, plane]);
         if (intersects.length > 0) {
@@ -180,14 +206,16 @@
 
     function addCube(x, y, z) {
         if (y < 0 || Math.abs(x) > 5 || Math.abs(z) > 5) return;
+        // 防止重疊放置
         if (cubes.some(c => Math.abs(c.userData.ox - x) < 0.1 && Math.abs(c.userData.oy - y) < 0.1 && Math.abs(c.userData.oz - z) < 0.1)) return;
+        
         const mat = new THREE.MeshLambertMaterial({ color: layerColors[Math.floor(y) % layerColors.length] });
         const cube = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.98, 0.98), mat);
         cube.position.set(x, y, z);
         cube.userData = { ox: x, oy: y, oz: z };
         scene.add(cube);
         cubes.push(cube);
-        updatePositions();
+        updatePositions(); // 確保新積木跟隨當前展開狀態
         updateCount();
     }
 
@@ -202,7 +230,7 @@
 
     function updateCount() { document.getElementById('count').innerText = cubes.length; }
 
-    // 事件監聽：全面支援觸控與滑鼠
+    // 事件監聽 (移除控制器的 change 監聽，完全由 touch 事件處理邏輯)
     window.addEventListener('touchstart', onPointerDown, {passive: false});
     window.addEventListener('touchmove', onPointerMove, {passive: false});
     window.addEventListener('touchend', onPointerUp, {passive: false});
