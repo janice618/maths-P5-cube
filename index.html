@@ -3,40 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>體積量度 - 起點取代版</title>
+    <title>小五數學 - 體積量度</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         * { -webkit-touch-callout: none; -webkit-user-select: none; touch-action: none; }
         body { margin: 0; font-family: sans-serif; overflow: hidden; background: #f0f2f5; }
-        #ui { position: absolute; top: 15px; left: 15px; background: rgba(255,255,255,0.92); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 240px; z-index: 1000; }
+        
+        /* 面板與縮入動畫設定 */
+        #ui { 
+            position: absolute; top: 15px; left: 15px; 
+            background: rgba(255,255,255,0.92); padding: 15px; 
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+            width: 240px; z-index: 1000; 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #ui.collapsed { transform: translateX(-260px); background: rgba(255, 255, 255, 0.4); }
+        
+        #toggleBtn {
+            position: absolute; right: 10px; top: 10px;
+            background: #007bff; color: white; border: none;
+            border-radius: 4px; width: 35px; height: 35px;
+            cursor: pointer; font-weight: bold; font-size: 18px;
+            transition: right 0.4s;
+        }
+        #ui.collapsed #toggleBtn { right: -45px; border-radius: 0 6px 6px 0; box-shadow: 4px 0px 10px rgba(0,0,0,0.1); }
+
         .volume-box { background: #e8f5e9; padding: 10px; border-radius: 8px; text-align: center; margin: 10px 0; border: 1px solid #28a745; font-size: 20px; font-weight: bold; color: #2e7d32; }
         .btn { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
         .btn-add { background: #28a745; color: white; }
         .btn-del { background: #dc3545; color: white; }
         .active { outline: 4px solid #000; }
+        
         .control-group { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-top: 5px; }
-        input[type=range] { width: 100%; height: 30px; }
+        .slider-label { font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+        input[type=range] { width: 100%; height: 25px; margin-bottom: 10px; }
+        
         .tip { font-size: 11px; color: #666; margin-top: 5px; text-align: center; line-height: 1.4; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="font-weight:bold; border-bottom:1px solid #ccc; padding-bottom:5px;">體積量度 (學生版)</div>
+    <button id="toggleBtn" onclick="toggleUI()">◀</button>
+    <div style="font-weight:bold; border-bottom:1px solid #ccc; padding-bottom:5px; padding-right: 30px;">體積量度 (學生版)</div>
+    
     <div class="volume-box">體積：<span id="count">0</span> cm³</div>
+    
     <button id="addBtn" class="btn btn-add active" onclick="setMode('add')">模式：增加積木</button>
     <button id="delBtn" class="btn btn-del" onclick="setMode('del')">模式：刪除積木</button>
+    
     <div class="control-group">
-        <label style="font-size:12px; font-weight:bold;">↔ 拆解與展開 ↕</label>
+        <label class="slider-label">↕ 上下展開：</label>
         <input type="range" id="vSplit" min="0" max="2" step="0.01" value="0">
+        
+        <label class="slider-label" style="margin-top: 5px;">↔ 左右展開：</label>
         <input type="range" id="hSplit" min="0" max="2" step="0.01" value="0">
     </div>
+    
     <button onclick="location.reload()" class="btn" style="background:#6c757d; color:white;">清空重設</button>
     <div class="tip">提示：先點擊灰色積木<br>它會變成第一塊彩色積木！</div>
 </div>
 
 <script>
+    // 縮入面板功能
+    function toggleUI() {
+        const ui = document.getElementById('ui');
+        ui.classList.toggle('collapsed');
+        document.getElementById('toggleBtn').innerText = ui.classList.contains('collapsed') ? '▶' : '◀';
+    }
+
     let mode = 'add', cubes = [], startX = 0, startY = 0;
     const layerColors = [0x448aff, 0xffeb3b, 0xff5722, 0xe91e63, 0x00bcd4, 0x4caf50];
 
@@ -79,14 +115,13 @@
         if (e.target.closest('#ui')) return;
         const t = e.changedTouches ? e.changedTouches[0] : e;
         const dist = Math.sqrt(Math.pow(t.clientX - startX, 2) + Math.pow(t.clientY - startY, 2));
-        if (dist > 10) return;
+        if (dist > 10) return; // 判定為滑動，不執行點擊
 
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
 
         raycaster.setFromCamera(mouse, camera);
-        // 只有在 baseCube 可見時才偵測它
         const targets = baseCube.visible ? [baseCube, ...cubes] : cubes;
         const intersects = raycaster.intersectObjects(targets);
 
@@ -94,10 +129,8 @@
             const intersect = intersects[0];
             if (mode === 'add') {
                 if (intersect.object.name === "base") {
-                    // 點擊灰色，直接在原地生成彩色積木
                     addCube(0.5, 0.5, 0.5);
                 } else {
-                    // 點擊已有積木的表面
                     const normal = intersect.face.normal.clone();
                     const worldPos = intersect.object.position.clone().add(normal);
                     addCube(worldPos.x, worldPos.y, worldPos.z);
@@ -105,7 +138,6 @@
             } else if (mode === 'del' && intersect.object.name !== "base") {
                 scene.remove(intersect.object);
                 cubes.splice(cubes.indexOf(intersect.object), 1);
-                // 如果刪掉的是 (0.5, 0.5, 0.5) 且沒有其他積木了，讓灰色顯示出來
                 checkBaseVisibility();
                 updateCount();
             }
@@ -113,8 +145,9 @@
     }
 
     function addCube(x, y, z) {
+        // 防止重疊
         if (cubes.some(c => Math.abs(c.userData.ox - x) < 0.1 && Math.abs(c.userData.oy - y) < 0.1 && Math.abs(c.userData.oz - z) < 0.1)) return;
-        if (y < 0.5) return;
+        if (y < 0.5) return; // 不能砌到地下
 
         const cube = new THREE.Mesh(
             new THREE.BoxGeometry(0.98, 0.98, 0.98), 
@@ -130,7 +163,7 @@
         updateCount();
     }
 
-    // 檢查灰色基準木是否該隱藏 (當座標 0.5,0.5,0.5 有實體積木時隱藏)
+    // 檢查是否顯示灰色起點
     function checkBaseVisibility() {
         const hasCenterCube = cubes.some(c => 
             Math.abs(c.userData.ox - 0.5) < 0.1 && 
@@ -140,6 +173,7 @@
         baseCube.visible = !hasCenterCube;
     }
 
+    // 更新展開狀態
     function updateSplits() {
         const v = parseFloat(document.getElementById('vSplit').value);
         const h = parseFloat(document.getElementById('hSplit').value);
@@ -163,6 +197,8 @@
     window.addEventListener('mouseup', onPointerUp);
     window.addEventListener('touchstart', onPointerDown);
     window.addEventListener('touchend', onPointerUp);
+    
+    // 自適應螢幕大小
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
