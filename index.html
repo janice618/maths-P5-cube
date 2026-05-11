@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小五數學科 - 體積的量度 (學生版)</title>
+    <title>小五數學科 - 體積量度</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        /* 核心介面規範 */
         * { -webkit-touch-callout: none; -webkit-user-select: none; touch-action: none; box-sizing: border-box; }
         
         body { 
@@ -17,7 +16,6 @@
             background: #f0f2f5; 
         }
         
-        /* 面板樣式 */
         #ui { 
             position: absolute; top: 15px; left: 15px; 
             background: rgba(255,255,255,0.98); padding: 18px; 
@@ -37,11 +35,10 @@
         }
         #ui.collapsed #toggleBtn { right: -42px; border-radius: 0 6px 6px 0; }
 
-        /* 標題區域 */
         .header { margin-bottom: 12px; padding-right: 30px; }
         
         .subject-badge { 
-            background-color: #005bb7; /* 藍色背景標籤 */
+            background-color: #005bb7; 
             color: white; 
             padding: 2px 10px; 
             border-radius: 20px; 
@@ -55,7 +52,6 @@
         .header-subtitle { display: block; font-size: 12px; color: #888; margin-bottom: 8px; }
         .header-line { width: 100%; height: 2px; background-color: #28a745; border: none; }
 
-        /* 資訊區 */
         .volume-box { 
             background: #e8f5e9; padding: 12px; border-radius: 8px; 
             text-align: center; margin: 10px 0; border: 1px solid #c8e6c9; 
@@ -67,22 +63,16 @@
         .btn-del { background: #dc3545; color: white; }
         .active { outline: 4px solid #333; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
         
-        /* 展開控制區域 */
         .control-group { 
             background: #fdfdfd; padding: 12px; border-radius: 8px; 
             border: 1px solid #eee; margin-top: 8px; 
         }
         
         .slider-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;}
-        
-        .slider-label { 
-            font-size: 14px; font-weight: bold; display: flex; align-items: center; 
-            color: #444; width: 90px; flex-shrink: 0;
-        }
-        
+        .slider-label { font-size: 14px; font-weight: bold; color: #444; width: 90px; flex-shrink: 0; }
         input[type=range] { width: calc(100% - 95px); height: 25px; cursor: pointer; }
         
-        /* 一鍵還原按鈕配色 */
+        /* 「一鍵還原」按鈕樣式 */
         .btn-restore {
             background-color: #e3f2fd;
             color: #005bb7;
@@ -92,7 +82,6 @@
         .btn-restore:active { background-color: #bbdefb; }
 
         .btn-reset { background:#6c757d; color:white; margin-top:10px; }
-
         .tip { font-size: 12px; color: #666; margin-top: 8px; text-align: center; font-style: italic; }
     </style>
 </head>
@@ -100,16 +89,13 @@
 
 <div id="ui">
     <button id="toggleBtn" onclick="toggleUI()">◀</button>
-    
     <div class="header">
         <div class="subject-badge">小五數學科</div>
         <span class="header-title">體積的量度 (學生版)</span>
         <span class="header-subtitle">設計者：黃潔芳老師</span>
         <div class="header-line"></div>
     </div>
-    
     <div class="volume-box">總體積：<span id="count">0</span> cm³</div>
-    
     <button id="addBtn" class="btn btn-add active" onclick="setMode('add')">模式：增加積木</button>
     <button id="delBtn" class="btn btn-del" onclick="setMode('del')">模式：刪除積木</button>
     
@@ -128,24 +114,19 @@
         </div>
         <button onclick="resetSplits()" class="btn btn-restore">↺ 一鍵還原展開</button>
     </div>
-    
     <button onclick="location.reload()" class="btn btn-reset">清空所有積木</button>
-    <div class="tip">提示：點擊灰色積木開始砌圖</div>
 </div>
 
 <script>
-    // 面板收合功能
     function toggleUI() {
         const ui = document.getElementById('ui');
         ui.classList.toggle('collapsed');
         document.getElementById('toggleBtn').innerText = ui.classList.contains('collapsed') ? '▶' : '◀';
     }
 
-    // 核心 3D 變數
     let mode = 'add', cubes = [], startX, startY;
     const layerColors = [0x448aff, 0xffeb3b, 0xff5722, 0xe91e63, 0x00bcd4, 0x4caf50];
 
-    // 初始化 Three.js 場景
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8f9fa);
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -162,12 +143,14 @@
     light.position.set(10, 20, 10);
     scene.add(light);
 
-    // 添加地面網格
     scene.add(new THREE.GridHelper(10, 10, 0xbbbbbb, 0xeeeeee));
 
-    // 灰色起點積木
+    const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const edgesGeometry = new THREE.EdgesGeometry(cubeGeometry);
+    const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 3 });
+
     const baseCube = new THREE.Mesh(
-        new THREE.BoxGeometry(0.95, 0.95, 0.95), 
+        new THREE.BoxGeometry(1.02, 1.02, 1.02), 
         new THREE.MeshBasicMaterial({color: 0xcccccc, transparent: true, opacity: 0.5})
     );
     baseCube.position.set(0.5, 0.5, 0.5);
@@ -176,7 +159,6 @@
 
     const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 
-    // 處理點擊與觸摸
     function onDown(e) {
         const t = e.touches ? e.touches[0] : e;
         startX = t.clientX; startY = t.clientY;
@@ -186,16 +168,12 @@
         if (e.target.closest('#ui')) return;
         const t = e.changedTouches ? e.changedTouches[0] : e;
         const dist = Math.sqrt(Math.pow(t.clientX - startX, 2) + Math.pow(t.clientY - startY, 2));
-        if (dist > 10) return; // 判定為滑動視角則不作處理
-
+        if (dist > 10) return;
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
-
         raycaster.setFromCamera(mouse, camera);
-        const targets = baseCube.visible ? [baseCube, ...cubes] : cubes;
-        const intersects = raycaster.intersectObjects(targets);
-
+        const intersects = raycaster.intersectObjects(cubes.concat(baseCube.visible ? [baseCube] : []));
         if (intersects.length > 0) {
             const intersect = intersects[0];
             if (mode === 'add') {
@@ -211,17 +189,18 @@
         }
     }
 
-    // 添加積木邏輯
     function addCube(x, y, z) {
-        // 防止重複位置添加
         if (cubes.some(c => Math.abs(c.userData.ox-x)<0.1 && Math.abs(c.userData.oy-y)<0.1 && Math.abs(c.userData.oz-z)<0.1)) return;
         if (y < 0.5) return;
-        const cube = new THREE.Mesh(
-            new THREE.BoxGeometry(0.98, 0.98, 0.98), 
-            new THREE.MeshLambertMaterial({color: layerColors[Math.floor(y)%6]})
-        );
+        const cube = new THREE.Mesh(cubeGeometry, new THREE.MeshLambertMaterial({color: layerColors[Math.floor(y)%6]}));
         cube.position.set(x, y, z);
         cube.userData = { ox: x, oy: y, oz: z };
+
+        // 粗邊框優化
+        const outlines = new THREE.LineSegments(edgesGeometry, outlineMaterial);
+        outlines.scale.set(1.002, 1.002, 1.002);
+        cube.add(outlines);
+
         scene.add(cube);
         cubes.push(cube);
         checkBase(); updateSplits(); updateCount();
@@ -241,12 +220,11 @@
         updateSplits();
     }
 
-    // 處理三軸展開演算法
-    function updateSplits() {
+    // 處理三軸展開演算法 
+     function updateSplits() {
         const v = parseFloat(document.getElementById('vSplit').value);
         const h = parseFloat(document.getElementById('hSplit').value);
         const d = parseFloat(document.getElementById('dSplit').value);
-
         cubes.forEach(c => {
             const level = Math.floor(c.userData.oy - 0.5);
             c.position.y = c.userData.oy + (level * v); 
