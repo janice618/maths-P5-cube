@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小五數學科 - 體積量度</title>
+    <title>小五數學科 - 體積量度 (3D 全展開版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -29,7 +29,7 @@
         }
         #ui.collapsed #toggleBtn { right: -42px; border-radius: 0 6px 6px 0; }
 
-        /* 新標題樣式 (對照圖片) */
+        /* 標題樣式 */
         .header { margin-bottom: 15px; position: relative; }
         .subject-badge { 
             background-color: #28a745; 
@@ -41,25 +41,9 @@
             display: inline-block;
             margin-bottom: 6px;
         }
-        .header-title { 
-            display: block; 
-            font-size: 19px; 
-            font-weight: bold; 
-            color: #333; 
-            margin-bottom: 2px;
-        }
-        .header-subtitle { 
-            display: block; 
-            font-size: 12px; 
-            color: #888; 
-            margin-bottom: 8px;
-        }
-        .header-line { 
-            width: 100%; 
-            height: 2px; 
-            background-color: #28a745; 
-            border: none;
-        }
+        .header-title { display: block; font-size: 19px; font-weight: bold; color: #333; margin-bottom: 2px; }
+        .header-subtitle { display: block; font-size: 12px; color: #888; margin-bottom: 8px; }
+        .header-line { width: 100%; height: 2px; background-color: #28a745; border: none; }
 
         /* 功能按鈕與資訊區 */
         .volume-box { background: #e8f5e9; padding: 12px; border-radius: 8px; text-align: center; margin: 10px 0; border: 1px solid #c8e6c9; font-size: 22px; font-weight: bold; color: #2e7d32; }
@@ -70,11 +54,11 @@
         
         /* 展開控制區域 */
         .control-group { background: #fdfdfd; padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-top: 8px; }
-        /* 標題對齊圖 3，包含所有符號 */
         .split-main-header { font-size: 14px; font-weight: bold; display: block; text-align: center; color: #333; margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 5px;}
         .slider-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;}
-        .slider-label { font-size: 13px; font-weight: bold; display: flex; align-items: center; color: #444; width: 75px; flex-shrink: 0;}
-        input[type=range] { width: calc(100% - 80px); height: 25px; cursor: pointer; }
+        /* 微調寬度以適應新文字 */
+        .slider-label { font-size: 13px; font-weight: bold; display: flex; align-items: center; color: #444; width: 85px; flex-shrink: 0;}
+        input[type=range] { width: calc(100% - 90px); height: 25px; cursor: pointer; }
         
         .tip { font-size: 12px; color: #666; margin-top: 8px; text-align: center; font-style: italic; }
     </style>
@@ -97,18 +81,18 @@
     <button id="delBtn" class="btn btn-del" onclick="setMode('del')">模式：刪除積木</button>
     
     <div class="control-group">
-        <span class="split-main-header">↕ 上下 ↔ 左右 ⟷ 前後<br>拆解與展開</span>
+        <span class="split-main-header">↕ 垂直 ↔ 橫向 ⤢ 縱向<br>拆解與展開</span>
         
         <div class="slider-row">
-            <label class="slider-label">↕ 上下展開</label>
+            <label class="slider-label">↕ 垂直展開</label>
             <input type="range" id="vSplit" min="0" max="2" step="0.01" value="0">
         </div>
         <div class="slider-row">
-            <label class="slider-label">↔ 左右展開</label>
+            <label class="slider-label">↔ 橫向展開</label>
             <input type="range" id="hSplit" min="0" max="2" step="0.01" value="0">
         </div>
         <div class="slider-row">
-            <label class="slider-label">⟷ 前後展開</label>
+            <label class="slider-label">⤢ 縱向展開</label>
             <input type="range" id="dSplit" min="0" max="2" step="0.01" value="0">
         </div>
     </div>
@@ -118,18 +102,15 @@
 </div>
 
 <script>
-    // 1. 面板切換功能
     function toggleUI() {
         const ui = document.getElementById('ui');
         ui.classList.toggle('collapsed');
         document.getElementById('toggleBtn').innerText = ui.classList.contains('collapsed') ? '▶' : '◀';
     }
 
-    // 2. 3D 場景變數
     let mode = 'add', cubes = [], startX, startY;
     const layerColors = [0x448aff, 0xffeb3b, 0xff5722, 0xe91e63, 0x00bcd4, 0x4caf50];
 
-    // 3. 初始化場景
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8f9fa);
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -146,22 +127,18 @@
     light.position.set(10, 20, 10);
     scene.add(light);
 
-    // 網格底座
     scene.add(new THREE.GridHelper(10, 10, 0xbbbbbb, 0xeeeeee));
 
-    // 4. 灰色起點積木 (基準積木，始終在中心)
     const baseCube = new THREE.Mesh(
         new THREE.BoxGeometry(0.95, 0.95, 0.95), 
         new THREE.MeshBasicMaterial({color: 0xcccccc, transparent: true, opacity: 0.5})
     );
-    // 灰色起點坐標 (0.5, 0.5, 0.5)
     baseCube.position.set(0.5, 0.5, 0.5);
     baseCube.name = "base";
     scene.add(baseCube);
 
     const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 
-    // 5. 互動邏輯
     function onDown(e) {
         const t = e.touches ? e.touches[0] : e;
         startX = t.clientX; startY = t.clientY;
@@ -171,7 +148,7 @@
         if (e.target.closest('#ui')) return;
         const t = e.changedTouches ? e.changedTouches[0] : e;
         const dist = Math.sqrt(Math.pow(t.clientX - startX, 2) + Math.pow(t.clientY - startY, 2));
-        if (dist > 10) return; // 判定為滑動視角
+        if (dist > 10) return;
 
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
@@ -197,40 +174,30 @@
     }
 
     function addCube(x, y, z) {
-        // 防止重疊 (檢查 ox, oy, oz)
         if (cubes.some(c => Math.abs(c.userData.ox-x)<0.1 && Math.abs(c.userData.oy-y)<0.1 && Math.abs(c.userData.oz-z)<0.1)) return;
-        if (y < 0.5) return; // 不能砌到地下
+        if (y < 0.5) return;
         const cube = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.98, 0.98), new THREE.MeshLambertMaterial({color: layerColors[Math.floor(y)%6]}));
         cube.position.set(x, y, z);
-        cube.userData = { ox: x, oy: y, oz: z }; // 儲存原始坐標
+        cube.userData = { ox: x, oy: y, oz: z };
         scene.add(cube);
         cubes.push(cube);
-        checkBase(); updateSplits(); updateCount(); // 確保新積木跟隨當前展開狀態
+        checkBase(); updateSplits(); updateCount();
     }
 
     function checkBase() {
-        // 灰色起點與第一塊積木重疊坐標：(0.5, 0.5, 0.5)
         const hasCenter = cubes.some(c => Math.abs(c.userData.ox-0.5)<0.1 && Math.abs(c.userData.oy-0.5)<0.1 && Math.abs(c.userData.oz-0.5)<0.1);
         baseCube.visible = !hasCenter;
     }
 
-    // 6. 核心修正：位置更新功能 (增加前後 Z 軸支持)
     function updateSplits() {
-        const v = parseFloat(document.getElementById('vSplit').value); // 上下垂直偏移
-        const h = parseFloat(document.getElementById('hSplit').value); // 左右水平偏移
-        const d = parseFloat(document.getElementById('dSplit').value); // 前後深度偏移
+        const v = parseFloat(document.getElementById('vSplit').value);
+        const h = parseFloat(document.getElementById('hSplit').value);
+        const d = parseFloat(document.getElementById('dSplit').value);
 
         cubes.forEach(c => {
-            // 垂直偏移：基於樓層，基數為 0.5
-            const level = Math.floor(c.userData.oy - 0.5); // 0, 1, 2...
+            const level = Math.floor(c.userData.oy - 0.5);
             c.position.y = c.userData.oy + (level * v); 
-            
-            // 水平偏移 (X軸)：對齊基準 0.5
-            // ox > 0.5 的向右移，ox < 0.5 的向左移
             c.position.x = c.userData.ox + ((c.userData.ox - 0.5) * h * 0.5); 
-            
-            // 深度偏移 (Z軸)：對齊基準 0.5
-            // oz > 0.5 的向前移，oz < 0.5 的向後移
             c.position.z = c.userData.oz + ((c.userData.oz - 0.5) * d * 0.5); 
         });
     }
@@ -243,7 +210,6 @@
 
     function updateCount() { document.getElementById('count').innerText = cubes.length; }
 
-    // 事件綁定
     document.getElementById('vSplit').oninput = updateSplits;
     document.getElementById('hSplit').oninput = updateSplits;
     document.getElementById('dSplit').oninput = updateSplits;
